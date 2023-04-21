@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Login</title>
+    </head>
+    <body>
+        <div>
+            <label for="txtLogin">Login: </label>
+            <input type="text" id="txtLogin" />
+        </div>
+        <div>
+            <label for="txtPassword">Password: </label>
+            <input type="password" id="txtPassword" />
+        </div>
+        <div><input type="button" value="Login" onclick="btn_login();" /></div>
+
+        <script>
+            "use strict";
+
+            function btn_login() {
+                let txt_login = txtLogin.value;
+                let txt_pass = txtPassword.value;
+                alert(`login as ${txt_login}, ${txt_pass}`);
+                let creds = JSON.stringify({ "username": txt_login, "password": txt_pass });
+
+                fetch(
+                    "/api/login", 
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: creds,
+                        credentials: "same-origin"
+                    })
+                    .then((r) => { 
+                        console.log(r);
+                        if (r.ok) {
+                            r.blob()
+                             .then((b) => b.text())
+                             .then((url) => {  
+                                 //alert(`going to ${url}`);
+                                 document.location.href = url;
+                             });
+                        } else {
+                            alert("Login failed");
+
+                        }
+                    }
+                )
+            }
+
+        </script>
+    </body>
+</html>
+
