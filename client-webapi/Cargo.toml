@@ -1,0 +1,46 @@
+[package]
+name = "plebiscite-client-webapi"
+
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+
+[lib]
+path = "src/lib.rs"
+
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+
+plebiscite-types = { path = "../types" }
+
+serde = { version = "1", features = [ "derive" ] }
+serde_json = "1"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
+version = "0.3"
+features = [
+    "console",
+
+    "Blob",
+    
+    "Request",
+    "RequestCredentials",
+    "RequestMode",
+    "RequestInit",
+
+    "Response",
+    "Headers",
+
+    "ReadableStream",
+    "ReadableStreamByobReader",
+    "ReadableStreamGetReaderOptions",
+    "ReadableStreamReaderMode",
+
+    "Window",
+]
+

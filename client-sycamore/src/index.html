@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>My first Sycamore app</title>
+    <link data-trunk rel="rust" href=".." data-bin="plebiscite-client-sycamore" data-type="main" />
+    <link data-trunk rel="copy-file" href="login.html" />
+    <script>
+        //alert(window.crossOriginIsolated);
+
+function update_vector(v) {
+    console.log("updating vector!");
+    for(let i = 0; i < v.length; i+=2) {
+        v[i] = i + 100;
+    }
+}
+
+async function read_into_slice(stream, v) {
+    console.log("reading into slice...");
+    let rdr = stream.getReader({ mode: "byob" });
+
+    try {
+        let result = await rdr.read(v);
+        console.log(result);
+    } catch (e) {
+        console.log("Error: " + e);
+    }
+}
+    </script>
+  </head>
+  <body></body>
+</html>
+

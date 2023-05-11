@@ -7,6 +7,8 @@ mod session;
 
 use db_driver::{ DbDriver, LoggedInUser };
 
+use plebiscite_types::{ LoginInfo };
+
 //----------------------------------------------------------------
 
 #[actix_web::main]
@@ -36,7 +38,7 @@ async fn main() -> std::io::Result<()> {
 #[get("/{filepath:.+\\.*(js|wasm)}")]
 async fn static_file(filepath: web::Path<String>) -> actix_web::Result<actix_files::NamedFile> {
     let newpath = format!("server_root/{}", filepath);
-    println!("{}", newpath);
+    println!("Requesting static file: '{}'", newpath);
     Ok(actix_files::NamedFile::open(newpath)?)
 }
 
@@ -58,7 +60,10 @@ async fn page_spa_main(req: HttpRequest, drv: web::Data<DbDriver>) -> actix_web:
 
     if let Some(_) = session::get_logged_in_user(&req, drv).await {
         let file = actix_files::NamedFile::open("server_root/index.html")?;
-        Ok(file.into_response(&req))
+        let mut resp = file.into_response(&req);
+        resp.headers_mut().insert(actix_web::http::header::CROSS_ORIGIN_OPENER_POLICY, actix_web::http::header::HeaderValue::from_static("same-origin"));
+        resp.headers_mut().insert(actix_web::http::header::CROSS_ORIGIN_EMBEDDER_POLICY, actix_web::http::header::HeaderValue::from_static("require-corp"));
+        Ok(resp)
     } else {
         let resp = HttpResponse::SeeOther()
                                 .insert_header(("Location", req.url_for_static("page_login").unwrap().as_str()))
@@ -69,12 +74,6 @@ async fn page_spa_main(req: HttpRequest, drv: web::Data<DbDriver>) -> actix_web:
 
 
 //---------- api: public -------------------
-
-#[derive(serde::Deserialize)]
-struct LoginInfo {
-    username: String,
-    password: String
-}
 
 #[post("/api/login")]
 async fn api_login(req: HttpRequest, drv: web::Data<DbDriver>, form: actix_web::web::Json<LoginInfo>) -> impl Responder {

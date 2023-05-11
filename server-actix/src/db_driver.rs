@@ -1,6 +1,8 @@
 use sqlx::postgres as pg;
 use sqlx::types::Uuid;
 
+use plebiscite_types::{ Usergroup };
+
 
 #[derive(Clone)]
 pub struct DbDriver {
@@ -13,13 +15,6 @@ pub struct LoggedInUser {
     pub user_id: i64,
     pub user_name: String,
     pub full_name: String,
-}
-
-
-#[derive(Clone, Debug, serde::Serialize)]
-pub struct Usergroup {
-    pub usergroup_id: i64,
-    pub title:        String,
 }
 
 
