@@ -3,8 +3,8 @@
 members = [
     "types",
     "server-actix",
-    "client-webapi",
-    "client-sycamore",
+    "client/webapi",
+    "client/sycamore",
 ]
 
 default-members = [
@@ -16,3 +16,8 @@ default-members = [
 version = "0.1.0"
 edition = "2021"
 authors = ["Roman Melnyk <kromgart@gmail.com>"]
+
+[profile.release]
+strip = "symbols"
+lto = true
+codegen-units = 1

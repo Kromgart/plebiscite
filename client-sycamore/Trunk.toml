@@ -1,3 +1,0 @@
-[build]
-target = "src/index.html"
-dist = "../server-actix/server_root"

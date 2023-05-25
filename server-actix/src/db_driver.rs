@@ -40,6 +40,13 @@ impl DbDriver {
             .await
             .unwrap()
     }
+
+    pub async fn try_register_login(&self, username: &str, password: &str) -> Option<Uuid> {
+        sqlx::query_scalar!("SELECT try_register_login($1, $2);", username, password)
+            .fetch_one(&self.db_pool)
+            .await
+            .unwrap()
+    }
     
     pub async fn get_assigned_usergroups(&self, user_id: i64) -> Vec<Usergroup> {
         sqlx::query_as!(
