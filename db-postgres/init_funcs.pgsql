@@ -3,12 +3,16 @@ CREATE FUNCTION add_session(
     __user_id sessions.user_id%TYPE
 ) RETURNS sessions.session_id%TYPE
 AS $$
+DECLARE
+    __session_id sessions.session_id%TYPE;
 BEGIN
     DELETE FROM sessions WHERE user_id = __user_id AND current_timestamp >= expires;
 
     INSERT INTO sessions (user_id, expires)
     VALUES (__user_id, current_timestamp + interval '30 minutes')
-    RETURNING session_id;
+    RETURNING session_id INTO __session_id;
+
+    RETURN __session_id;
 END
 $$ LANGUAGE plpgsql;
 
@@ -26,7 +30,7 @@ DECLARE
 BEGIN
     SELECT user_id INTO __user_id FROM users WHERE user_name = __user_name AND "password" = __password LIMIT 1;
     IF __user_id IS NOT NULL THEN
-        SELECT ss.session_id FROM add_session(__user_id) INTO __session_id;
+        SELECT add_session FROM add_session(__user_id) INTO __session_id;
     END IF;
 
     RETURN __session_id;
@@ -49,12 +53,12 @@ BEGIN
     IF __user_id IS NULL THEN
         WITH usr AS (
             INSERT INTO users (user_name, "password", full_name)
-            VALUES (__user_name, __password, "(full name)")
+            VALUES (__user_name, __password, '(full name)')
             RETURNING user_id
         )
-        SELECT usr.user_id FROM ss INTO __user_id;
+        SELECT usr.user_id FROM usr INTO __user_id;
 
-        SELECT ss.session_id FROM add_session(__user_id) INTO __session_id;
+        SELECT add_session FROM add_session(__user_id) INTO __session_id;
     END IF;
 
     RETURN __session_id;

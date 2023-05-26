@@ -52,5 +52,8 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO pleb_reader;
 DROP ROLE IF EXISTS pleb_app;
 CREATE ROLE pleb_app LOGIN PASSWORD 'aoeuAOEU';
 GRANT pleb_reader TO pleb_app;
+
 GRANT INSERT ON ALL TABLES IN SCHEMA public TO pleb_app;
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO pleb_app;
+
 GRANT DELETE ON TABLE sessions TO pleb_app;
