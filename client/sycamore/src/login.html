@@ -89,7 +89,7 @@
                 register_box.hidden = !register_box.hidden;
             }
 
-            async function post_json(url, body) {
+            async function post_json_and_follow(url, body) {
                 let resp = await fetch(
                     url,
                     {
@@ -122,8 +122,9 @@
                 let creds = JSON.stringify({ username, password });
 
                 try {
-                    await post_json("/api/login", creds);
+                    await post_json_and_follow("/api/login", creds);
                 } catch (e) {
+                    console.log(e);
                     alert("Login failed");
                 }
             }
@@ -138,11 +139,17 @@
                     return;
                 }
 
+                if (password != password_2) {
+                    alert("passwords do not match");
+                    return;
+                }
+
                 let jsbody = JSON.stringify({ username, password });
 
                 try {
-                    await post_json("/api/register", jsbody);
+                    await post_json_and_follow("/api/register", jsbody);
                 } catch (e) {
+                    console.log(e);
                     alert("Registration failed");
                 }
             }
