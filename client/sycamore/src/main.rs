@@ -21,15 +21,16 @@ async fn MyGroups<G: Html>(cx: Scope<'_>) -> View<G> {
             view! { cx, ul { 
                 Keyed (
                     iterable=groups,
-                    view=|cx, g| view! { cx, li { (g.title) } },
-                    key=|g| g.usergroup_id
+                    view=|cx, g| view! { cx, li { (g.data.title) } },
+                    key=|g| g.id
+                    //key=|g| g.id.clone()
                 ) 
             }}
         },
         Err(e) => {
-            println!("{:?}", e);
+            println!("Sycamore error: {:?}", e);
 
-            view! { cx, h1 { "error" } }
+            view! { cx, h1 { "Sycamore error" } }
         }
     }
 

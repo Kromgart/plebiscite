@@ -6,7 +6,7 @@ use actix_web::dev::{ self, ServiceRequest, Service };
 
 use futures_util::future::LocalBoxFuture;
 
-use crate::db_driver::{ DbDriver, LoggedInUser };
+use crate::db_driver::{ DbDriver, User, DbResult };
 
 
 //-------------------------------------------------------------
@@ -25,16 +25,14 @@ impl Into<actix_web::Error> for ExtractUserError {
     } 
 }
 
-
 //-------------------------------------------------------------
 
-
-impl FromRequest for LoggedInUser {
+impl FromRequest for User {
     type Error = ExtractUserError;
-    type Future = Ready<Result<LoggedInUser, ExtractUserError>>;
+    type Future = Ready<Result<User, ExtractUserError>>;
     
     fn from_request(req: &HttpRequest, _payload: &mut dev::Payload) -> Self::Future {
-        let data = match req.extensions().get::<LoggedInUser>() {
+        let data = match req.extensions().get::<User>() {
             Some(lgu) => Ok(lgu.clone()),
             None => Err(ExtractUserError)
         };
@@ -43,23 +41,19 @@ impl FromRequest for LoggedInUser {
     }
 }
 
-
 //----------------------------------------------------------------
-
 
 pub struct SessionMiddleware<S> {
     service: Rc<S>,
     drv: DbDriver,
 }
 
-
-pub async fn get_logged_in_user(req: &HttpRequest, drv: &DbDriver) -> Option<LoggedInUser> {
-    match req.cookie(SESSION_ID).and_then(|sid| sqlx::types::Uuid::parse_str(sid.value()).ok()) {
-        None => None,
+pub async fn get_logged_in_user(req: &HttpRequest, drv: &DbDriver) -> DbResult<Option<User>> {
+    match req.cookie(SESSION_ID).and_then(|sid| uuid::Uuid::parse_str(sid.value()).ok()) {
+        None => Ok(None),
         Some(sid) => drv.get_session_user(sid).await
     }
 }
-
 
 impl<S> Service<ServiceRequest> for SessionMiddleware<S>
 where
@@ -79,11 +73,19 @@ where
 
         Box::pin(async move {
 
-            if let Some(lgu) = get_logged_in_user(req.request(), &drv).await {
-                req.extensions_mut().insert(lgu);
-                srv.call(req).await
-            } else {
-                Err(actix_web::error::ErrorUnauthorized("Session is missing"))
+            match get_logged_in_user(req.request(), &drv).await {
+                Ok(Some(lgu)) => {
+                    req.extensions_mut().insert(lgu);
+                    srv.call(req).await
+                },
+                Ok(None) => {
+                    println!("SessionMiddleware: no session");
+                    Err(actix_web::error::ErrorUnauthorized("Session is missing"))
+                },
+                Err(e) => {
+                    println!("SessionMiddleware: {:?}", e);
+                    Err(actix_web::error::ErrorServiceUnavailable("Database error"))
+                },
             }
         })
 

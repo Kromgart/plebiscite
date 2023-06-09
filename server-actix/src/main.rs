@@ -1,13 +1,21 @@
+//#![feature(trace_macros)]
 use actix_web::{cookie, get, post, web, App, HttpRequest, HttpResponse, HttpServer, Responder};
 
 mod db_driver;
 mod session;
 
-use db_driver::{DbDriver, LoggedInUser};
+use db_driver::{DbDriver, User, DbError};
 
 use plebiscite_types::LoginInfo;
 
 //----------------------------------------------------------------
+
+impl actix_web::error::ResponseError for DbError {
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::ServiceUnavailable().body("Database error")
+    }
+}
+
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -55,32 +63,35 @@ async fn page_spa_main(
 ) -> actix_web::Result<HttpResponse> {
     let drv = drv.get_ref();
 
-    if let Some(_) = session::get_logged_in_user(&req, drv).await {
-        let file = actix_files::NamedFile::open("server_root/index.html")?;
-        let mut resp = file.into_response(&req);
-        resp.headers_mut().insert(
-            actix_web::http::header::CROSS_ORIGIN_OPENER_POLICY,
-            actix_web::http::header::HeaderValue::from_static("same-origin"),
-        );
-        resp.headers_mut().insert(
-            actix_web::http::header::CROSS_ORIGIN_EMBEDDER_POLICY,
-            actix_web::http::header::HeaderValue::from_static("require-corp"),
-        );
-        Ok(resp)
-    } else {
-        let resp = HttpResponse::SeeOther()
+    match session::get_logged_in_user(&req, drv).await? {
+        Some(_) => {
+            let file = actix_files::NamedFile::open("server_root/index.html")?;
+            let mut resp = file.into_response(&req);
+            resp.headers_mut().insert(
+                actix_web::http::header::CROSS_ORIGIN_OPENER_POLICY,
+                actix_web::http::header::HeaderValue::from_static("same-origin"),
+            );
+            resp.headers_mut().insert(
+                actix_web::http::header::CROSS_ORIGIN_EMBEDDER_POLICY,
+                actix_web::http::header::HeaderValue::from_static("require-corp"),
+            );
+            Ok(resp)
+        },
+        None => {
+            let resp = HttpResponse::SeeOther()
             .insert_header((
                 "Location",
                 req.url_for_static("page_login").unwrap().as_str(),
             ))
             .finish();
-        Ok(resp)
+            Ok(resp)
+        }
     }
 }
 
 //---------- api: public -------------------
 
-fn login_with_cookie(req: HttpRequest, session_id: Option<sqlx::types::Uuid>) -> impl Responder
+fn login_with_cookie(req: HttpRequest, session_id: Option<uuid::Uuid>) -> HttpResponse
 {
     if let Some(session_id) = session_id {
         let cookie = cookie::Cookie::build(session::SESSION_ID, session_id.to_string())
@@ -105,9 +116,10 @@ async fn api_login(
     form: actix_web::web::Json<LoginInfo>,
 ) -> impl Responder {
     println!("trying to login as {}, {}", form.username, form.password);
-    let drv = drv.get_ref();
-    let session_id = drv.try_login(&form.username, &form.password).await;
-    login_with_cookie(req, session_id)
+    drv.get_ref()
+        .try_login(&form.username, &form.password)
+        .await
+        .map(|session_id| login_with_cookie(req, session_id))
 }
 
 #[post("/api/register")]
@@ -117,22 +129,22 @@ async fn api_register_login(
     form: actix_web::web::Json<LoginInfo>,
 ) -> impl Responder {
     println!("trying to register as {}, {}", form.username, form.password);
-    let drv = drv.get_ref();
-    let session_id = drv.try_register_login(&form.username, &form.password).await;
-    login_with_cookie(req, session_id)
+    drv.get_ref()
+        .try_register_login(&form.username, &form.password)
+        .await
+        .map(|session_id| login_with_cookie(req, session_id))
 }
 //---------- api: login protected -----------
 
 #[get("/current_user")]
-async fn current_user(user: LoggedInUser) -> impl Responder {
-    HttpResponse::Ok().body(user.user_name)
+async fn current_user(user: User) -> impl Responder {
+    HttpResponse::Ok().body(user.data.user_name)
 }
 
 #[get("/user/groups")]
-async fn user_groups(user: LoggedInUser, drv: web::Data<DbDriver>) -> impl Responder {
-    let drv = drv.get_ref();
-
-    let groups = drv.get_assigned_usergroups(user.user_id).await;
-
-    HttpResponse::Ok().json(groups)
+async fn user_groups(user: User, drv: web::Data<DbDriver>) -> Result<HttpResponse, DbError> {
+    drv.get_ref()
+        .get_assigned_usergroups(user.user_id)
+        .await
+        .map(|groups| HttpResponse::Ok().json(groups))
 }

@@ -5,11 +5,12 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 
-
-#[[lib]]
-#path = "src/lib.rs"
-
+[features]
+postgres = ["dep:postgres-types", "dep:bytes"]
+wasm = []
 
 [dependencies]
 serde = { version = "1", features = [ "derive" ] }
 
+bytes = { version = "1.4", optional = true }
+postgres-types = { version = "0.2", optional = true, features = [ "with-uuid-1" ] }

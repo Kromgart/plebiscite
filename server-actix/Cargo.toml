@@ -12,10 +12,17 @@ path = "src/main.rs"
 
 
 [dependencies]
-plebiscite-types = { path = "../types" }
+
+plebiscite-types = { path = "../types", features = [ "postgres" ] }
+
+const_format = "0.2"
 actix-web = "4.3"
 actix-files = "0.6"
 futures-util = "0.3"
 serde = "1"
-sqlx = { version = "0.6", features = [ "runtime-actix-rustls", "postgres", "uuid" ] }
 
+uuid = "1"
+tokio-postgres = { version = "0.7", features = [ "runtime", "with-uuid-1" ] }
+deadpool-postgres = "0.10"
+
+# sqlx = { version = "0.6", features = [ "runtime-actix-rustls", "postgres", "uuid" ] }

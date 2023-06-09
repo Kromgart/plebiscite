@@ -14,7 +14,7 @@ path = "src/main.rs"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 
-plebiscite-types = { path = "../../types" }
+plebiscite-types = { path = "../../types", features = [ "wasm" ] }
 plebiscite-client-webapi = { path = "../webapi" }
 
 sycamore = { version = "0.8", features = [ "suspense" ] }
