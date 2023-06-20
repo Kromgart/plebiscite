@@ -1,26 +1,7 @@
-use plebiscite_types::Usergroup;
-use wasm_bindgen::prelude::JsCast;
+use wasm_bindgen::{prelude::JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
-/*
-#[wasm_bindgen()]
-extern "C" {
-    fn update_vector(xs: &mut [u8]);
-    async fn read_into_slice(stream: &js_sys::Object, buf: &mut [u8]);
-}
-
-fn test_mut_slice() {
-    let mut test = vec![1_u8; 10];
-    update_vector(&mut test);
-
-    unsafe {
-        let test2 = js_sys::Uint8Array::view(test.as_slice());
-        web_sys::console::log_1(&test2);
-    }
-}
-*/
-
-//use serde::de::Error;
+use plebiscite_types::{Usergroup, UsergroupId, UsergroupData};
 
 type StdError = Box<dyn std::error::Error>;
 
@@ -31,20 +12,84 @@ pub enum FetchError {
     ResponseNotOk,
     ReadBodyFailed,
     Deserialize(StdError),
+    Serialize(StdError),
     Other(String),
 }
 
-async fn fetch_data<F, T>(url: &str, deser: F) -> Result<T, FetchError>
+pub type FetchResult<T> = Result<T, FetchError>;
+
+pub async fn get_assigned_usergroups() -> FetchResult<Vec<Usergroup>> {
+    get_json("/api/user/groups").await
+}
+
+pub async fn create_usergroup(data: &UsergroupData) -> FetchResult<UsergroupId> {
+    post_json("/api/user/groups/create", data).await
+}
+
+//--------------------------------------------------------------------
+
+enum Verb {
+    Get,
+    Post
+}
+
+async fn get_json<T>(url: &str) -> FetchResult<T>
+where
+    T: for<'a> serde::Deserialize<'a>,
+{
+    fetch_json(url, Verb::Get, <Option<&()>>::None).await
+}
+
+async fn post_json<T, B>(url: &str, body: &B) -> FetchResult<T>
+where
+    T: for<'a> serde::Deserialize<'a>,
+    B: serde::Serialize,
+{
+    fetch_json(url, Verb::Post, Some(body)).await
+}
+
+//--------------------------------------------------------------------
+
+async fn fetch_json<T, B>(url: &str, verb: Verb, body: Option<&B>) -> FetchResult<T>
+where
+    T: for<'a> serde::Deserialize<'a>,
+    B: serde::Serialize,
+{
+    fetch(url, verb, body, |buf| {
+        serde_json::from_slice(buf).map_err(|e| Box::new(e) as StdError)
+    })
+    .await
+}
+
+//--------------------------------------------------------------------
+
+async fn fetch<F, T, B>(url: &str, verb: Verb, body: Option<&B>, mk_result: F) -> FetchResult<T>
 where
     F: FnOnce(&[u8]) -> Result<T, StdError>,
-    T: for<'a> serde::de::Deserialize<'a>,
+    B: serde::Serialize,
 {
     use FetchError as ER;
 
     let wnd = web_sys::window().ok_or(ER::NoWindow)?;
 
     let mut opts = web_sys::RequestInit::new();
-    opts.method("GET");
+
+    opts.method(match verb {
+        Verb::Get => "GET",
+        Verb::Post => "POST",
+    });
+
+    if let Some(body) = body {
+        //let body = serde_wasm_bindgen::to_value(body).map_err(ER::Serialize)?;
+        let body = serde_json::to_string(body).map_err(|e| ER::Serialize(Box::new(e)))?;
+        //web_sys::console::debug_1(&body);
+        opts.body(Some(&JsValue::from_str(&body)));
+
+        let headers = web_sys::Headers::new().expect("Cannot create fetch Headers");
+        headers.set("Content-Type", "application/json").expect("Cannot set fetch Content-Type header");
+        opts.headers(&headers);
+    }
+
     opts.credentials(web_sys::RequestCredentials::SameOrigin);
     opts.mode(web_sys::RequestMode::SameOrigin);
 
@@ -59,30 +104,16 @@ where
         //let content_len = resp.headers().get("Content-Length").unwrap().expect("Response is missing Content-Length");
         //let content_len = <usize as std::str::FromStr>::from_str(content_len.as_str()).expect("Could not parse Content-Length as usize");
 
-        let arbu = JsFuture::from(
+        let arr_buf = JsFuture::from(
             resp.array_buffer()
                 .expect("Response.arrayBuffer() didn't produce a Promise"),
         )
         .await
         .map_err(|_| ER::ReadBodyFailed)?;
 
-        let buf = js_sys::Uint8Array::new(&arbu).to_vec();
-        let result = deser(buf.as_slice()).map_err(ER::Deserialize);
+        let buf = js_sys::Uint8Array::new(&arr_buf).to_vec();
+        let result = mk_result(buf.as_slice()).map_err(ER::Deserialize);
 
         result
     }
-}
-
-async fn fetch_json<T>(url: &str) -> Result<T, FetchError>
-where
-    T: for<'a> serde::de::Deserialize<'a>,
-{
-    fetch_data(url, |buf| {
-        serde_json::from_slice(buf).map_err(|e| Box::new(e) as StdError)
-    })
-    .await
-}
-
-pub async fn get_assigned_usergroups() -> Result<Vec<Usergroup>, FetchError> {
-    fetch_json("/api/user/groups").await
 }

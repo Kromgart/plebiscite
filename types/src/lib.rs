@@ -8,11 +8,17 @@ pub struct LoginInfo {
     pub password: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+//-----------------------------------------------------------
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct UserData {
     pub user_name: String,
     pub full_name: String,
 }
+
+pub type UserId = ObjectId<UserData>;
+
+//-----------------------------------------------------------
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct UsergroupData {
@@ -20,15 +26,8 @@ pub struct UsergroupData {
     //pub tags: Option<i64>,
 }
 
-pub type UserId = ObjectId<UserData>;
-
 pub type UsergroupId = ObjectId<UsergroupData>;
 
+pub type Usergroup = (UsergroupId, UsergroupData);
 
-
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-//#[cfg_attr(feature = "sqlx", derive(sqlx::FromRow))]
-pub struct Usergroup {
-    pub id: UsergroupId,
-    pub data: UsergroupData,
-}
+//-----------------------------------------------------------

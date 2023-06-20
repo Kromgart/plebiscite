@@ -1,4 +1,11 @@
 #[macro_export]
+macro_rules! pg_fn_one {
+    ($db:ident, $fn:literal, $($args:tt)+)  => {
+        pg_fn_option!($db, $fn, $($args)+).and_then(|opt| opt.ok_or(DbError::NoResult))
+    };
+}
+
+#[macro_export]
 macro_rules! pg_fn_option {
     ($db:ident, $fn:literal, $args:tt)  => {
         pg_fn_option!($db, $fn, $args, ())

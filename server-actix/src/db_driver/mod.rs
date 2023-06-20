@@ -3,7 +3,7 @@ use deadpool_postgres::{Config, Object, Pool};
 use tokio_postgres::{types::ToSql, Row, Statement};
 use uuid::Uuid;
 
-use plebiscite_types::{UserData, UserId, Usergroup, UsergroupData};
+use plebiscite_types::{UserData, UserId, Usergroup, UsergroupId, UsergroupData};
 
 #[macro_use]
 mod macros;
@@ -15,6 +15,7 @@ type PoolError = deadpool_postgres::PoolError;
 pub enum DbError {
     Pool(PoolError),
     Postgres(PgError),
+    NoResult,
 }
 
 impl fmt::Display for DbError {
@@ -22,6 +23,7 @@ impl fmt::Display for DbError {
         match self {
             DbError::Pool(e) => write!(f, "Pool error: {}", e),
             DbError::Postgres(e) => write!(f, "Db error: {}", e),
+            DbError::NoResult => write!(f, "No result from database"),
         }
     }
 }
@@ -124,13 +126,14 @@ impl DbDriver {
             self, 
             "get_assigned_usergroups", 
             [&user_id], 
-            Usergroup { 
-                id<"usergroup_id">,
-                data: UsergroupData {
-                    title
-                }
-            })
+            (
+                "usergroup_id",
+                UsergroupData { title }
+            )
+        )
     }
 
-    //pub async fn create_usergroup(&self, creator: UserId, title: String) -> Option<
+    pub async fn create_usergroup(&self, creator: UserId, group: UsergroupData) -> DbResult<UsergroupId> {
+        pg_fn_one!(self, "create_assign_usergroup", [&creator, &group.title])
+    }
 }

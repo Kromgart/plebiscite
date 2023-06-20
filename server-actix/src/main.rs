@@ -1,4 +1,3 @@
-//#![feature(trace_macros)]
 use actix_web::{cookie, get, post, web, App, HttpRequest, HttpResponse, HttpServer, Responder};
 
 mod db_driver;
@@ -6,7 +5,7 @@ mod session;
 
 use db_driver::{DbDriver, User, DbError};
 
-use plebiscite_types::LoginInfo;
+use plebiscite_types::{LoginInfo, UsergroupData};
 
 //----------------------------------------------------------------
 
@@ -34,7 +33,8 @@ async fn main() -> std::io::Result<()> {
                 web::scope("/api")
                     .wrap(session::SessionMiddlewareFactory::new(drv.clone()))
                     .service(current_user)
-                    .service(user_groups),
+                    .service(user_groups)
+                    .service(user_group_create)
             )
     })
     .bind("127.0.0.1:8080")?
@@ -113,7 +113,7 @@ fn login_with_cookie(req: HttpRequest, session_id: Option<uuid::Uuid>) -> HttpRe
 async fn api_login(
     req: HttpRequest,
     drv: web::Data<DbDriver>,
-    form: actix_web::web::Json<LoginInfo>,
+    form: web::Json<LoginInfo>,
 ) -> impl Responder {
     println!("trying to login as {}, {}", form.username, form.password);
     drv.get_ref()
@@ -136,15 +136,38 @@ async fn api_register_login(
 }
 //---------- api: login protected -----------
 
+macro_rules! respond_ok_json {
+    ($drv:ident, $fn:ident ($($args:expr),+)) => {
+        $drv.get_ref()
+            .$fn($($args),+)
+            .await
+            .map(|result| HttpResponse::Ok().json(result))
+    };
+}
+
+macro_rules! respond_ok_text {
+    ($drv:ident, $fn:ident ($($args:expr),+) $(-> $($cont:tt)+)?) => {
+        $drv.get_ref()
+            .$fn($($args),+)
+            .await
+            .map(|result| HttpResponse::Ok().body(result $(.$($cont)+)?))
+    };
+}
+
 #[get("/current_user")]
 async fn current_user(user: User) -> impl Responder {
     HttpResponse::Ok().body(user.data.user_name)
 }
 
+
 #[get("/user/groups")]
 async fn user_groups(user: User, drv: web::Data<DbDriver>) -> Result<HttpResponse, DbError> {
-    drv.get_ref()
-        .get_assigned_usergroups(user.user_id)
-        .await
-        .map(|groups| HttpResponse::Ok().json(groups))
+    respond_ok_json!(drv, get_assigned_usergroups(user.user_id))
+}
+
+#[post("/user/groups/create")]
+async fn user_group_create(user: User, drv: web::Data<DbDriver>, group: web::Json<UsergroupData>) -> Result<HttpResponse, DbError> {
+    println!("creating group {:?}", group);
+    respond_ok_json!(drv, create_usergroup(user.user_id, group.0))
+    //respond_ok_text!(drv, create_usergroup(user.user_id, group.0) -> value.to_string())
 }

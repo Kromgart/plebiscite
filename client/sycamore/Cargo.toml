@@ -17,4 +17,4 @@ path = "src/main.rs"
 plebiscite-types = { path = "../../types", features = [ "wasm" ] }
 plebiscite-client-webapi = { path = "../webapi" }
 
-sycamore = { version = "0.8", features = [ "suspense" ] }
+sycamore = { version = "0.9.0-beta.1", features = [ "suspense" ] }
