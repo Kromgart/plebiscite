@@ -166,8 +166,8 @@ async fn user_groups(user: User, drv: web::Data<DbDriver>) -> Result<HttpRespons
 }
 
 #[post("/user/groups/create")]
-async fn user_group_create(user: User, drv: web::Data<DbDriver>, group: web::Json<UsergroupData>) -> Result<HttpResponse, DbError> {
+async fn user_group_create(user: User, drv: web::Data<DbDriver>, web::Json(group): web::Json<UsergroupData>) -> Result<HttpResponse, DbError> {
     println!("creating group {:?}", group);
-    respond_ok_json!(drv, create_usergroup(user.user_id, group.0))
-    //respond_ok_text!(drv, create_usergroup(user.user_id, group.0) -> value.to_string())
+    respond_ok_json!(drv, create_usergroup(user.user_id, group))
+    //respond_ok_text!(drv, create_usergroup(user.user_id, group) -> value.to_string())
 }

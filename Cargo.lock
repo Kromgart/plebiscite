@@ -367,6 +367,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "console_error_panic_hook"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a06aeb73f470f66dcdbf7223caeebb85984942f22f1adb2a088cf9668146bbbc"
+dependencies = [
+ "cfg-if",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "const_format"
 version = "0.2.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -967,6 +977,7 @@ checksum = "6ac9a59f73473f1b8d852421e59e64809f025994837ef743615c6d0c5b305160"
 name = "plebiscite-client-sycamore"
 version = "0.1.0"
 dependencies = [
+ "console_error_panic_hook",
  "plebiscite-client-webapi",
  "plebiscite-types",
  "sycamore",
@@ -976,6 +987,7 @@ dependencies = [
 name = "plebiscite-client-webapi"
 version = "0.1.0"
 dependencies = [
+ "const_format",
  "js-sys",
  "plebiscite-types",
  "serde",

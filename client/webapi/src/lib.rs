@@ -1,7 +1,29 @@
+use const_format::concatcp;
 use wasm_bindgen::{prelude::JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
 use plebiscite_types::{Usergroup, UsergroupId, UsergroupData};
+
+pub fn log_str(s: &str) {
+    web_sys::console::log_1(&s.into()) 
+}
+
+#[macro_export]
+macro_rules! log_pfx {
+    ($pfx:literal, $str:literal) => { 
+        log_str(concatcp!($pfx, ": ", $str));
+    };
+    ($pfx:literal, $str:literal, $($args:tt)+) => {{
+        let msg = format!("{}: {}", $pfx, format_args!($str, $($args)+));
+        log_str(&msg);
+    }};
+}
+
+macro_rules! log {
+    ($($args:tt)+) => { 
+        log_pfx!("webapi", $($args)+)
+    };
+}
 
 type StdError = Box<dyn std::error::Error>;
 
@@ -32,6 +54,17 @@ enum Verb {
     Get,
     Post
 }
+
+impl Verb {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Verb::Get => "GET",
+            Verb::Post => "POST",
+        }
+    }
+}
+
+//--------------------------------------------------------------------
 
 async fn get_json<T>(url: &str) -> FetchResult<T>
 where
@@ -68,16 +101,15 @@ where
     F: FnOnce(&[u8]) -> Result<T, StdError>,
     B: serde::Serialize,
 {
+    log!("webapi: fetch {} / {}", url, verb.as_str());
+
     use FetchError as ER;
 
     let wnd = web_sys::window().ok_or(ER::NoWindow)?;
 
     let mut opts = web_sys::RequestInit::new();
 
-    opts.method(match verb {
-        Verb::Get => "GET",
-        Verb::Post => "POST",
-    });
+    opts.method(verb.as_str());
 
     if let Some(body) = body {
         //let body = serde_wasm_bindgen::to_value(body).map_err(ER::Serialize)?;
@@ -93,14 +125,17 @@ where
     opts.credentials(web_sys::RequestCredentials::SameOrigin);
     opts.mode(web_sys::RequestMode::SameOrigin);
 
+
     let resp = JsFuture::from(wnd.fetch_with_str_and_init(&url, &opts))
         .await
         .map_err(|_| ER::FetchFailed)?;
     let resp: web_sys::Response = resp.dyn_into().expect("fetch() didn't produce a Response");
 
     if !resp.ok() {
+        log!("webapi: fetch NOT OK");
         Err(ER::ResponseNotOk)
     } else {
+        log!("webapi: fetch OK, processing response...");
         //let content_len = resp.headers().get("Content-Length").unwrap().expect("Response is missing Content-Length");
         //let content_len = <usize as std::str::FromStr>::from_str(content_len.as_str()).expect("Could not parse Content-Length as usize");
 
@@ -114,6 +149,7 @@ where
         let buf = js_sys::Uint8Array::new(&arr_buf).to_vec();
         let result = mk_result(buf.as_slice()).map_err(ER::Deserialize);
 
+        log!("webapi: fetch deserialized and finished");
         result
     }
 }
