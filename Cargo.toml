@@ -6,6 +6,7 @@ members = [
     "server-actix",
     "client/webapi",
     "client/sycamore",
+    "client/leptos",
 ]
 
 default-members = [

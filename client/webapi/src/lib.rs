@@ -1,8 +1,11 @@
 use const_format::concatcp;
 use wasm_bindgen::{prelude::JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
+use serde::{Serialize, Deserialize};
 
 use plebiscite_types::{Usergroup, UsergroupId, UsergroupData};
+
+//--------------------------------------------------------------------
 
 pub fn log_str(s: &str) {
     web_sys::console::log_1(&s.into()) 
@@ -25,131 +28,159 @@ macro_rules! log {
     };
 }
 
-type StdError = Box<dyn std::error::Error>;
+//--------------------------------------------------------------------
 
-#[derive(Debug)]
-pub enum FetchError {
-    NoWindow,
-    FetchFailed,
-    ResponseNotOk,
-    ReadBodyFailed,
-    Deserialize(StdError),
-    Serialize(StdError),
-    Other(String),
-}
+pub trait TypeConverter {
+    type Error;
 
-pub type FetchResult<T> = Result<T, FetchError>;
-
-pub async fn get_assigned_usergroups() -> FetchResult<Vec<Usergroup>> {
-    get_json("/api/user/groups").await
-}
-
-pub async fn create_usergroup(data: &UsergroupData) -> FetchResult<UsergroupId> {
-    post_json("/api/user/groups/create", data).await
+    fn content_type() -> &'static str;
+    fn serialize<T: Serialize>(x: T) -> Result<JsValue, Self::Error>;
+    fn deserialize<T: for<'a> Deserialize<'a>>(buf: &[u8]) -> Result<T, Self::Error>;
 }
 
 //--------------------------------------------------------------------
 
-enum Verb {
-    Get,
-    Post
+#[derive(Debug)]
+pub enum FetchError<TC: TypeConverter> {
+    NoWindow,
+    FetchFailed,
+    ResponseNotOk,
+    ReadBodyFailed,
+    Deserialize(TC::Error),
+    Serialize(TC::Error),
+    Other(String),
 }
 
-impl Verb {
-    fn as_str(&self) -> &'static str {
+pub type FetchResult<T, TC> = Result<T, FetchError<TC>>;
+
+//--------------------------------------------------------------------
+
+#[derive(Copy, Clone)]
+enum Method<T> {
+    Get,
+    Post(T),
+}
+
+impl<T> Method<T> {
+    fn into_parts(self) -> (&'static str, Option<T>) {
         match self {
-            Verb::Get => "GET",
-            Verb::Post => "POST",
+            Self::Get => ("GET", None),
+            Self::Post(x) => ("POST", Some(x)),
         }
     }
 }
 
 //--------------------------------------------------------------------
 
-async fn get_json<T>(url: &str) -> FetchResult<T>
-where
-    T: for<'a> serde::Deserialize<'a>,
-{
-    fetch_json(url, Verb::Get, <Option<&()>>::None).await
+pub struct WebAPI<TC> {
+    _marker: std::marker::PhantomData<TC>
 }
 
-async fn post_json<T, B>(url: &str, body: &B) -> FetchResult<T>
-where
-    T: for<'a> serde::Deserialize<'a>,
-    B: serde::Serialize,
-{
-    fetch_json(url, Verb::Post, Some(body)).await
+impl<TC: TypeConverter> WebAPI<TC> { 
+
+    pub async fn get_assigned_usergroups() -> FetchResult<Vec<Usergroup>, TC> {
+        Self::http_get("/api/user/groups").await
+    }
+
+    pub async fn create_usergroup(data: &UsergroupData) -> FetchResult<UsergroupId, TC> {
+        Self::http_post("/api/user/groups/create", data).await
+    }
+
+    //---------------------------------------------------------------
+
+    async fn http_get<T>(url: &str) -> FetchResult<T, TC>
+    where T: for<'a> Deserialize<'a>
+    {
+        Self::fetch::<T, ()>(url, Method::Get).await
+    }
+
+    async fn http_post<T, U>(url: &str, body: U) -> FetchResult<T, TC>
+    where U: Serialize,
+          T: for<'a> Deserialize<'a>
+    {
+        Self::fetch(url, Method::Post(body)).await
+    }
+
+    //---------------------------------------------------------------
+
+    async fn fetch<T, U>(url: &str, method: Method<U>) -> FetchResult<T, TC>
+    where U: Serialize,
+          T: for<'a> Deserialize<'a>
+    {
+
+        macro_rules! err {
+            ($id:ident) => { <FetchError<TC>>::$id };
+        }
+
+        let (verb, body) = method.into_parts();
+
+        log!("fetch {} / {}", url, verb);
+
+        let wnd = web_sys::window().ok_or(err!(NoWindow))?;
+        let mut opts = web_sys::RequestInit::new();
+        opts.method(verb);
+
+        if let Some(body) = body {
+            let body = TC::serialize(body).map_err(err!(Serialize))?;
+            opts.body(Some(&body));
+
+            let headers = web_sys::Headers::new().expect("Cannot create fetch Headers");
+            headers.set("Content-Type", TC::content_type()).expect("Cannot set fetch Content-Type header");
+            opts.headers(&headers);
+        }
+
+        opts.credentials(web_sys::RequestCredentials::SameOrigin);
+        opts.mode(web_sys::RequestMode::SameOrigin);
+
+        let resp = JsFuture::from(wnd.fetch_with_str_and_init(url, &opts))
+            .await
+            .map_err(|_| err!(FetchFailed))?;
+        let resp: web_sys::Response = resp.dyn_into().expect("fetch() didn't produce a Response");
+
+        if !resp.ok() {
+            log!("fetch NOT OK");
+            Err(err!(ResponseNotOk))
+        } else {
+            log!("fetch OK, processing response...");
+
+            let arr_buf = JsFuture::from(
+                resp.array_buffer()
+                    .expect("Response.arrayBuffer() didn't produce a Promise"),
+            )
+            .await
+            .map_err(|_| err!(ReadBodyFailed))?;
+
+            let buf = js_sys::Uint8Array::new(&arr_buf).to_vec();
+            let result = TC::deserialize(buf.as_slice()).map_err(err!(Deserialize));
+
+            log!("fetch deserialized and finished");
+            result
+        }
+    }
 }
 
 //--------------------------------------------------------------------
 
-async fn fetch_json<T, B>(url: &str, verb: Verb, body: Option<&B>) -> FetchResult<T>
-where
-    T: for<'a> serde::Deserialize<'a>,
-    B: serde::Serialize,
-{
-    fetch(url, verb, body, |buf| {
-        serde_json::from_slice(buf).map_err(|e| Box::new(e) as StdError)
-    })
-    .await
-}
+#[derive(Debug)]
+pub struct JsonTypeConverter {}
 
-//--------------------------------------------------------------------
+impl TypeConverter for JsonTypeConverter {
+    type Error = serde_json::Error;
 
-async fn fetch<F, T, B>(url: &str, verb: Verb, body: Option<&B>, mk_result: F) -> FetchResult<T>
-where
-    F: FnOnce(&[u8]) -> Result<T, StdError>,
-    B: serde::Serialize,
-{
-    log!("webapi: fetch {} / {}", url, verb.as_str());
-
-    use FetchError as ER;
-
-    let wnd = web_sys::window().ok_or(ER::NoWindow)?;
-
-    let mut opts = web_sys::RequestInit::new();
-
-    opts.method(verb.as_str());
-
-    if let Some(body) = body {
-        //let body = serde_wasm_bindgen::to_value(body).map_err(ER::Serialize)?;
-        let body = serde_json::to_string(body).map_err(|e| ER::Serialize(Box::new(e)))?;
-        //web_sys::console::debug_1(&body);
-        opts.body(Some(&JsValue::from_str(&body)));
-
-        let headers = web_sys::Headers::new().expect("Cannot create fetch Headers");
-        headers.set("Content-Type", "application/json").expect("Cannot set fetch Content-Type header");
-        opts.headers(&headers);
+    fn content_type() -> &'static str {
+        "application/json"
     }
 
-    opts.credentials(web_sys::RequestCredentials::SameOrigin);
-    opts.mode(web_sys::RequestMode::SameOrigin);
+    fn serialize<T: Serialize>(x: T) -> Result<JsValue, Self::Error> {
+        serde_json::to_string(&x).map(|x| x.into())
+    }
 
-
-    let resp = JsFuture::from(wnd.fetch_with_str_and_init(&url, &opts))
-        .await
-        .map_err(|_| ER::FetchFailed)?;
-    let resp: web_sys::Response = resp.dyn_into().expect("fetch() didn't produce a Response");
-
-    if !resp.ok() {
-        log!("webapi: fetch NOT OK");
-        Err(ER::ResponseNotOk)
-    } else {
-        log!("webapi: fetch OK, processing response...");
-        //let content_len = resp.headers().get("Content-Length").unwrap().expect("Response is missing Content-Length");
-        //let content_len = <usize as std::str::FromStr>::from_str(content_len.as_str()).expect("Could not parse Content-Length as usize");
-
-        let arr_buf = JsFuture::from(
-            resp.array_buffer()
-                .expect("Response.arrayBuffer() didn't produce a Promise"),
-        )
-        .await
-        .map_err(|_| ER::ReadBodyFailed)?;
-
-        let buf = js_sys::Uint8Array::new(&arr_buf).to_vec();
-        let result = mk_result(buf.as_slice()).map_err(ER::Deserialize);
-
-        log!("webapi: fetch deserialized and finished");
-        result
+    fn deserialize<T: for<'a> Deserialize<'a>>(buf: &[u8]) -> Result<T, Self::Error> {
+        serde_json::from_slice(buf)
     }
 }
+
+pub type JsonWebAPI = WebAPI<JsonTypeConverter>;
+
+
+

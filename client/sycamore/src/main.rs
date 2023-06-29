@@ -1,4 +1,3 @@
-use std::ops::Deref;
 use sycamore::prelude::*;
 
 use plebiscite_types::*;
@@ -28,11 +27,12 @@ fn main() {
     });
 }
 
+use api::JsonWebAPI as API;
 
 #[component]
 async fn MyGroups<G: Html>(cx: Scope<'_>) -> View<G> {
 
-    let groups = api::get_assigned_usergroups().await;
+    let groups = API::get_assigned_usergroups().await;
     match groups {
         Ok(groups) => {
 
@@ -52,14 +52,11 @@ async fn MyGroups<G: Html>(cx: Scope<'_>) -> View<G> {
 
                 button(on:click=|_| async { 
                     let g = UsergroupData { title: txt_new_group.to_string() };
-                    let id = api::create_usergroup(&g).await;
+                    let id = API::create_usergroup(&g).await;
                     match id {
                         Ok(id) => { 
                             log!("Created group: {:?}", id);
-                            //let mut groups = <std::rc::Rc<_>>::into_inner(s_groups.take()).expect("Could not unwrap groups RC on new group creation");
-                            let mut groups = s_groups.get_untracked().deref().clone();
-                            groups.push((id, g)); 
-                            s_groups.set(groups);
+                            s_groups.modify().push((id, g)); 
                         },
                         Err(e) => { log_err!("Failed to create a new usergroup: {:?}", e); }
                     }
