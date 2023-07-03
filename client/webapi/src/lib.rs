@@ -1,4 +1,3 @@
-use const_format::concatcp;
 use wasm_bindgen::{prelude::JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 use serde::{Serialize, Deserialize};
@@ -14,7 +13,7 @@ pub fn log_str(s: &str) {
 #[macro_export]
 macro_rules! log_pfx {
     ($pfx:literal, $str:literal) => { 
-        log_str(concatcp!($pfx, ": ", $str));
+        log_str(&format!("{}: {}", $pfx, $str));
     };
     ($pfx:literal, $str:literal, $($args:tt)+) => {{
         let msg = format!("{}: {}", $pfx, format_args!($str, $($args)+));
@@ -55,7 +54,6 @@ pub type FetchResult<T, TC> = Result<T, FetchError<TC>>;
 
 //--------------------------------------------------------------------
 
-#[derive(Copy, Clone)]
 enum Method<T> {
     Get,
     Post(T),

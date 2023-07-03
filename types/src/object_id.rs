@@ -7,6 +7,15 @@ pub struct ObjectId<T, V = i64> {
     _marker: PhantomData<T>,
 }
 
+impl<T, V> ObjectId<T, V> {
+    pub fn new(value: V) -> Self {
+        Self {
+            value,
+            _marker: PhantomData
+        }
+    }
+}
+
 impl<T, V: Copy> Copy for ObjectId<T, V> { }
 
 impl<T, V: Copy> Clone for ObjectId<T, V> {

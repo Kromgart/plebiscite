@@ -1,0 +1,21 @@
+[package]
+name = "plebiscite-client-leptos"
+
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+
+
+[[bin]]
+name = "plebiscite-client-leptos"
+path = "src/main.rs"
+
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+
+plebiscite-types = { path = "../../types", features = [ "wasm" ] }
+plebiscite-client-webapi = { path = "../webapi" }
+
+leptos = { version = "0.3", default-features = false, features = [ "csr", "stable" ] }
+console_error_panic_hook = "0.1"

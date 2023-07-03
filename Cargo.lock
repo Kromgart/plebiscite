@@ -1559,7 +1559,6 @@ dependencies = [
 name = "plebiscite-client-webapi"
 version = "0.1.0"
 dependencies = [
- "const_format",
  "js-sys",
  "plebiscite-types",
  "serde",

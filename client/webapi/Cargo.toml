@@ -12,7 +12,7 @@ path = "src/lib.rs"
 
 plebiscite-types = { path = "../../types", features = [ "wasm" ] }
 
-const_format = "0.2"
+# const_format = "0.2"
 serde = { version = "1", features = [ "derive" ] }
 serde_json = "1"
 # serde-wasm-bindgen = "0.5"
