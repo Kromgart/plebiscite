@@ -162,6 +162,7 @@ async fn current_user(user: User) -> impl Responder {
 
 #[get("/user/groups")]
 async fn user_groups(user: User, drv: web::Data<DbDriver>) -> Result<HttpResponse, DbError> {
+    std::thread::sleep(std::time::Duration::from_millis(1000));
     respond_ok_json!(drv, get_assigned_usergroups(user.user_id))
 }
 

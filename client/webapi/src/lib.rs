@@ -179,6 +179,4 @@ impl TypeConverter for JsonTypeConverter {
 }
 
 pub type JsonWebAPI = WebAPI<JsonTypeConverter>;
-
-
-
+pub type JsonFetchResult<T> = FetchResult<T, JsonTypeConverter>;
